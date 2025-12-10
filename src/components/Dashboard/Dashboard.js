@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { cobrancasService } from '../../services/cobrancasService';
-import Logo from '../Logo/Logo';
+
 
 const Dashboard = () => {
   const [cobrancas, setCobrancas] = useState([]);
@@ -108,7 +108,7 @@ const Dashboard = () => {
       {/* Cabeçalho */}
       <header className="dashboard-header">
         <div className="header-left">
-          <Logo size={50} />
+
           <h1>Sistema de Cobrança</h1>
         </div>
         <div className="notifications-icon">🔔</div>
