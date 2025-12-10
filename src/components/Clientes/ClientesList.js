@@ -40,7 +40,16 @@ const ClientesList = () => {
 
   const formatarCPF = (cpf) => {
     if (!cpf) return '-';
-    return cpf.replace(/(\d{3})(\d{3})(\d{3})(\d{2})/, '$1.$2.$3-$4');
+    // Se já estiver formatado, retorna como está
+    if (cpf.includes('.') || cpf.includes('-')) {
+      return cpf;
+    }
+    // Se não estiver formatado, formata
+    const apenasDigitos = cpf.replace(/\D/g, '');
+    if (apenasDigitos.length === 11) {
+      return apenasDigitos.replace(/(\d{3})(\d{3})(\d{3})(\d{2})/, '$1.$2.$3-$4');
+    }
+    return cpf;
   };
 
   const formatarTelefone = (telefone) => {

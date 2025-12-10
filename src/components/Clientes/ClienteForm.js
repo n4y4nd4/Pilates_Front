@@ -67,11 +67,33 @@ const ClienteForm = () => {
     }
   };
 
+  const formatarCPF = (valor) => {
+    // Remove tudo que não é dígito
+    const apenasDigitos = valor.replace(/\D/g, '');
+    // Aplica a máscara: 000.000.000-00
+    if (apenasDigitos.length <= 3) {
+      return apenasDigitos;
+    } else if (apenasDigitos.length <= 6) {
+      return `${apenasDigitos.slice(0, 3)}.${apenasDigitos.slice(3)}`;
+    } else if (apenasDigitos.length <= 9) {
+      return `${apenasDigitos.slice(0, 3)}.${apenasDigitos.slice(3, 6)}.${apenasDigitos.slice(6)}`;
+    } else {
+      return `${apenasDigitos.slice(0, 3)}.${apenasDigitos.slice(3, 6)}.${apenasDigitos.slice(6, 9)}-${apenasDigitos.slice(9, 11)}`;
+    }
+  };
+
   const handleChange = (e) => {
     const { name, value } = e.target;
+    
+    // Formatar CPF automaticamente
+    let valorFormatado = value;
+    if (name === 'cpf') {
+      valorFormatado = formatarCPF(value);
+    }
+    
     setFormData((prev) => ({
       ...prev,
-      [name]: value,
+      [name]: valorFormatado,
     }));
     // Limpar erro do campo quando o usuário começar a digitar
     if (fieldErrors[name]) {
@@ -226,12 +248,17 @@ const ClienteForm = () => {
               value={formData.cpf}
               onChange={handleChange}
               required
-              placeholder="12345678901"
-              maxLength="11"
+              placeholder="000.000.000-00"
+              maxLength="14"
               className={fieldErrors.cpf ? 'error' : ''}
             />
             {fieldErrors.cpf && (
               <span className="field-error">{fieldErrors.cpf}</span>
+            )}
+            {!fieldErrors.cpf && (
+              <small style={{ color: '#6b7280', fontSize: '0.875rem' }}>
+                Formato: 000.000.000-00 (aceita até 14 caracteres)
+              </small>
             )}
           </div>
 

@@ -21,6 +21,24 @@ export const cobrancasService = {
     return extrairResultados(response.data);
   },
 
+  // Listar cobranças com filtro por status (query parameter)
+  listarPorStatus: async (status) => {
+    const response = await api.get(`/cobrancas/?status=${status}`);
+    return extrairResultados(response.data);
+  },
+
+  // Listar apenas cobranças atrasadas
+  listarAtrasadas: async () => {
+    const response = await api.get('/cobrancas/atrasadas/');
+    return extrairResultados(response.data);
+  },
+
+  // Listar apenas cobranças pendentes
+  listarPendentes: async () => {
+    const response = await api.get('/cobrancas/pendentes/');
+    return extrairResultados(response.data);
+  },
+
   // Buscar cobrança por ID
   buscarPorId: async (id) => {
     const response = await api.get(`/cobrancas/${id}/`);

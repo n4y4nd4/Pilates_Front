@@ -11,20 +11,34 @@ const CobrancasList = () => {
   const [revertendoPagamento, setRevertendoPagamento] = useState(null);
   const [filtroStatus, setFiltroStatus] = useState('TODAS');
   const [busca, setBusca] = useState('');
+  const [hoveredCheckbox, setHoveredCheckbox] = useState(null);
 
   useEffect(() => {
     carregarCobrancas();
-  }, []);
+  }, [filtroStatus]);
 
   useEffect(() => {
     aplicarFiltros();
-  }, [cobrancas, filtroStatus, busca]);
+  }, [cobrancas, busca]);
 
   const carregarCobrancas = async () => {
     try {
       setLoading(true);
       setError(null);
-      const data = await cobrancasService.listar();
+      let data;
+      
+      // Usar endpoints específicos quando possível para melhor performance
+      if (filtroStatus === 'ATRASADO') {
+        data = await cobrancasService.listarAtrasadas();
+      } else if (filtroStatus === 'PENDENTE') {
+        data = await cobrancasService.listarPendentes();
+      } else if (filtroStatus === 'PAGO') {
+        data = await cobrancasService.listarPorStatus('PAGO');
+      } else {
+        // TODAS ou outros status
+        data = await cobrancasService.listar();
+      }
+      
       const cobrancasArray = Array.isArray(data) ? data : (data.results || data.data || []);
       setCobrancas(cobrancasArray);
     } catch (err) {
@@ -38,12 +52,13 @@ const CobrancasList = () => {
   const aplicarFiltros = () => {
     let filtradas = [...cobrancas];
 
-    // Filtro por status
-    if (filtroStatus !== 'TODAS') {
+    // Filtro por status já é aplicado no carregamento quando possível
+    // Mas ainda pode ser necessário se o filtro não tiver endpoint específico
+    if (filtroStatus !== 'TODAS' && filtroStatus !== 'ATRASADO' && filtroStatus !== 'PENDENTE' && filtroStatus !== 'PAGO') {
       filtradas = filtradas.filter(c => c.status_cobranca === filtroStatus);
     }
 
-    // Filtro por busca (nome ou CPF)
+    // Filtro por busca (nome ou CPF) - sempre aplicado no cliente
     if (busca.trim()) {
       const buscaLower = busca.toLowerCase();
       filtradas = filtradas.filter(c => {
@@ -72,19 +87,25 @@ const CobrancasList = () => {
   };
 
   const handleReverterPagamento = async (id) => {
-    if (window.confirm('Deseja reverter o pagamento desta cobrança?')) {
-      try {
-        setRevertendoPagamento(id);
-        setError(null);
-        setSuccess(null);
-        await cobrancasService.reverterPagamento(id);
-        setSuccess('Pagamento revertido com sucesso!');
-        carregarCobrancas();
-      } catch (err) {
-        setError(`Erro ao reverter pagamento: ${err.message}`);
-      } finally {
-        setRevertendoPagamento(null);
-      }
+    try {
+      setRevertendoPagamento(id);
+      setError(null);
+      setSuccess(null);
+      await cobrancasService.reverterPagamento(id);
+      setSuccess('Pagamento revertido com sucesso!');
+      carregarCobrancas();
+    } catch (err) {
+      setError(`Erro ao reverter pagamento: ${err.message}`);
+    } finally {
+      setRevertendoPagamento(null);
+    }
+  };
+
+  const handleTogglePagamento = async (cobranca) => {
+    if (cobranca.status_cobranca === 'PAGO') {
+      handleReverterPagamento(cobranca.id);
+    } else {
+      handleMarcarComoPago(cobranca.id);
     }
   };
 
@@ -217,23 +238,24 @@ const CobrancasList = () => {
                       </span>
                     </td>
                     <td>
-                      {(cobranca.status_cobranca === 'PENDENTE' || cobranca.status_cobranca === 'ATRASADO') ? (
+                      {(cobranca.status_cobranca === 'PENDENTE' || cobranca.status_cobranca === 'ATRASADO' || cobranca.status_cobranca === 'PAGO') ? (
                         <button
-                          onClick={() => handleMarcarComoPago(cobranca.id)}
-                          className="btn-check"
-                          disabled={marcandoPago === cobranca.id}
-                          title="Marcar como pago"
+                          onClick={() => handleTogglePagamento(cobranca)}
+                          className={`btn-checkbox ${cobranca.status_cobranca === 'PAGO' ? 'checked' : ''}`}
+                          disabled={marcandoPago === cobranca.id || revertendoPagamento === cobranca.id}
+                          title={cobranca.status_cobranca === 'PAGO' ? 'Desmarcar pagamento' : 'Marcar como pago'}
+                          onMouseEnter={() => setHoveredCheckbox(cobranca.id)}
+                          onMouseLeave={() => setHoveredCheckbox(null)}
                         >
-                          {marcandoPago === cobranca.id ? '⏳' : '✅'}
-                        </button>
-                      ) : cobranca.status_cobranca === 'PAGO' ? (
-                        <button
-                          onClick={() => handleReverterPagamento(cobranca.id)}
-                          className="btn-reverter"
-                          disabled={revertendoPagamento === cobranca.id}
-                          title="Reverter pagamento"
-                        >
-                          {revertendoPagamento === cobranca.id ? '⏳' : '↩️'}
+                          {marcandoPago === cobranca.id || revertendoPagamento === cobranca.id ? (
+                            '⏳'
+                          ) : cobranca.status_cobranca === 'PAGO' ? (
+                            '✅'
+                          ) : hoveredCheckbox === cobranca.id ? (
+                            '✅'
+                          ) : (
+                            ''
+                          )}
                         </button>
                       ) : (
                         '-'

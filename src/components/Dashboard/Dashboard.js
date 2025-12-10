@@ -19,8 +19,12 @@ const Dashboard = () => {
   const carregarDados = async () => {
     try {
       setLoading(true);
+      // Carregar todas as cobranças para vencimentos próximos e receita prevista
       const todasCobrancas = await cobrancasService.listar();
       setCobrancas(todasCobrancas);
+
+      // Usar endpoint específico para atrasadas (melhor performance)
+      const atrasadas = await cobrancasService.listarAtrasadas();
 
       // Calcular estatísticas
       const hoje = new Date();
@@ -36,13 +40,6 @@ const Dashboard = () => {
         return vencimento >= hoje && vencimento <= seteDias;
       });
 
-      const atrasados = todasCobrancas.filter(c => {
-        if (!c.data_vencimento || c.status_cobranca === 'PAGO' || c.status_cobranca === 'CANCELADO') return false;
-        const vencimento = new Date(c.data_vencimento);
-        vencimento.setHours(0, 0, 0, 0);
-        return vencimento < hoje && (c.status_cobranca === 'ATRASADO' || c.status_cobranca === 'PENDENTE');
-      });
-
       const receitaPrevista = todasCobrancas
         .filter(c => c.status_cobranca === 'PENDENTE' || c.status_cobranca === 'ATRASADO')
         .reduce((sum, c) => {
@@ -55,8 +52,8 @@ const Dashboard = () => {
       setStats({
         vencimentosProximos: vencimentosProximos.length,
         atrasados: {
-          count: atrasados.length,
-          valor: atrasados.reduce((sum, c) => {
+          count: atrasadas.length,
+          valor: atrasadas.reduce((sum, c) => {
             const valor = typeof c.valor_total_devido === 'string' 
               ? parseFloat(c.valor_total_devido) 
               : (c.valor_total_devido || 0);

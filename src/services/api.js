@@ -38,14 +38,28 @@ api.interceptors.response.use(
           const validationError = new Error('Erro de validação');
           validationError.validationErrors = data;
           validationError.status = 400;
+          // Adiciona mensagem geral se disponível
+          if (data.detail || data.message) {
+            validationError.message = data.detail || data.message;
+          }
           return Promise.reject(validationError);
         }
       }
       
+      // Prioriza mensagens mais específicas do backend
       let message = data?.detail || 
                    data?.message || 
                    data?.error ||
+                   (typeof data === 'string' ? data : null) ||
                    'Erro ao processar requisição';
+      
+      // Se for um objeto com mensagens não estruturadas, tenta extrair
+      if (!message && typeof data === 'object' && !Array.isArray(data)) {
+        const firstKey = Object.keys(data)[0];
+        if (firstKey && Array.isArray(data[firstKey]) && data[firstKey].length > 0) {
+          message = data[firstKey][0];
+        }
+      }
       
       // Mensagens mais específicas por status
       if (status === 404) {
