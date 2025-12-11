@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { notificacoesService } from '../../services/notificacoesService';
+import { formatDateBR, formatDateTimeBR, toLocalDateFromApi } from '../../utils/date';
 
 const NotificacoesList = () => {
   const [notificacoes, setNotificacoes] = useState([]);
@@ -13,17 +14,30 @@ const NotificacoesList = () => {
 
   useEffect(() => {
     carregarNotificacoes();
-  }, []);
+  }, [filtroStatus]);
 
   useEffect(() => {
     aplicarFiltros();
-  }, [notificacoes, filtroStatus, filtroCanal]);
+  }, [notificacoes, filtroCanal]);
 
   const carregarNotificacoes = async () => {
     try {
       setLoading(true);
       setError(null);
-      const data = await notificacoesService.listar();
+      let data;
+      // Usar endpoints específicos do backend quando disponível
+      if (filtroStatus === 'ENVIADO') {
+        data = await notificacoesService.listarEnviadas();
+      } else if (filtroStatus === 'AGENDADO') {
+        data = await notificacoesService.listarAgendadas();
+      } else if (filtroStatus === 'FALHA') {
+        data = await notificacoesService.listarComFalha();
+      } else if (filtroStatus === 'TODOS') {
+        data = await notificacoesService.listar();
+      } else {
+        // Fallback: query param
+        data = await notificacoesService.listarPorStatus(filtroStatus);
+      }
       const notificacoesArray = Array.isArray(data) ? data : (data.results || data.data || []);
       setNotificacoes(notificacoesArray);
 
@@ -32,8 +46,8 @@ const NotificacoesList = () => {
       const vinteQuatroHorasAtras = new Date(agora.getTime() - 24 * 60 * 60 * 1000);
       const total24h = notificacoesArray.filter(n => {
         if (!n.data_envio_real) return false;
-        const dataEnvio = new Date(n.data_envio_real);
-        return dataEnvio >= vinteQuatroHorasAtras && n.status_envio === 'ENVIADO';
+        const dataEnvio = toLocalDateFromApi(n.data_envio_real);
+        return dataEnvio && dataEnvio >= vinteQuatroHorasAtras && n.status_envio === 'ENVIADO';
       }).length;
 
       setStats({ total24h });
@@ -48,10 +62,7 @@ const NotificacoesList = () => {
   const aplicarFiltros = () => {
     let filtradas = [...notificacoes];
 
-    // Filtro por status
-    if (filtroStatus !== 'TODOS') {
-      filtradas = filtradas.filter(n => n.status_envio === filtroStatus);
-    }
+    // Filtro por status já aplicado pelo backend quando possível
 
     // Filtro por canal
     if (filtroCanal !== 'TODOS') {
@@ -62,15 +73,19 @@ const NotificacoesList = () => {
   };
 
   const formatarDataHora = (data) => {
-    if (!data) return '-';
-    const date = new Date(data);
-    return date.toLocaleString('pt-BR', {
-      day: '2-digit',
-      month: '2-digit',
-      year: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit',
-    });
+    return formatDateTimeBR(data);
+  };
+
+  const formatarMoeda = (valor) => {
+    const valorNumerico = typeof valor === 'string' ? parseFloat(valor) : (valor || 0);
+    return new Intl.NumberFormat('pt-BR', {
+      style: 'currency',
+      currency: 'BRL',
+    }).format(valorNumerico);
+  };
+
+  const formatarData = (data) => {
+    return formatDateBR(data);
   };
 
   const getTipoReguaLabel = (tipo) => {
@@ -176,7 +191,7 @@ const NotificacoesList = () => {
             <tbody>
               {notificacoesFiltradas.map((notificacao) => (
                 <tr key={notificacao.id}>
-                  <td>{notificacao.cobranca_cliente_nome || '-'}</td>
+                  <td>{notificacao.cliente_nome || notificacao.cobranca_cliente_nome || '-'}</td>
                   <td>{formatarDataHora(notificacao.data_envio_real || notificacao.data_agendada)}</td>
                   <td>{getTipoReguaLabel(notificacao.tipo_regua)}</td>
                   <td>{notificacao.tipo_canal}</td>
@@ -209,8 +224,13 @@ const NotificacoesList = () => {
               <button className="modal-close" onClick={fecharModal}>×</button>
             </div>
             <div className="modal-body">
-              <div className="modal-info">
-                <p><strong>Cliente:</strong> {notificacaoSelecionada.cobranca_cliente_nome || '-'}</p>
+                <div className="modal-info">
+                <p><strong>Cliente:</strong> {notificacaoSelecionada.cliente_nome || notificacaoSelecionada.cobranca_cliente_nome || '-'}</p>
+                <p><strong>Email:</strong> {notificacaoSelecionada.cliente_email || '-'}</p>
+                <p><strong>Referência:</strong> {notificacaoSelecionada.cobranca_referencia || '-'}</p>
+                <p><strong>Valor:</strong> {notificacaoSelecionada.cobranca_valor ? new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(typeof notificacaoSelecionada.cobranca_valor === 'string' ? parseFloat(notificacaoSelecionada.cobranca_valor) : (notificacaoSelecionada.cobranca_valor || 0)) : '-'}</p>
+                <p><strong>Vencimento:</strong> {formatDateBR(notificacaoSelecionada.cobranca_data_vencimento)}</p>
+                <p><strong>Dias em atraso:</strong> {notificacaoSelecionada.dias_em_atraso ?? 0}</p>
                 <p><strong>Data/Hora:</strong> {formatarDataHora(notificacaoSelecionada.data_envio_real || notificacaoSelecionada.data_agendada)}</p>
                 <p><strong>Tipo da Régua:</strong> {getTipoReguaLabel(notificacaoSelecionada.tipo_regua)}</p>
                 <p><strong>Canal:</strong> {notificacaoSelecionada.tipo_canal}</p>

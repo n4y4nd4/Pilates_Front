@@ -33,6 +33,18 @@ export const cobrancasService = {
     return extrairResultados(response.data);
   },
 
+  // Novo endpoint: pagamentos atrasados (dashboard)
+  listarPagamentosAtrasados: async () => {
+    const response = await api.get('/cobrancas/pagamentos_atrasados/');
+    return extrairResultados(response.data);
+  },
+
+  // Novo endpoint: próximos vencimentos (dashboard)
+  listarProximosVencimentos: async () => {
+    const response = await api.get('/cobrancas/proximos_vencimentos/');
+    return extrairResultados(response.data);
+  },
+
   // Listar apenas cobranças pendentes
   listarPendentes: async () => {
     const response = await api.get('/cobrancas/pendentes/');

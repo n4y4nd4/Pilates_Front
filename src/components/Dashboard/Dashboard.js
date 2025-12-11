@@ -1,10 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { cobrancasService } from '../../services/cobrancasService';
+import { formatDateBR, toLocalDateFromApi } from '../../utils/date';
 
 
 const Dashboard = () => {
   const [cobrancas, setCobrancas] = useState([]);
+  const [cobrancasAtrasadas, setCobrancasAtrasadas] = useState([]);
   const [loading, setLoading] = useState(true);
   const [stats, setStats] = useState({
     vencimentosProximos: 0,
@@ -19,44 +21,26 @@ const Dashboard = () => {
   const carregarDados = async () => {
     try {
       setLoading(true);
-      // Carregar todas as cobranças para vencimentos próximos e receita prevista
-      const todasCobrancas = await cobrancasService.listar();
-      setCobrancas(todasCobrancas);
+      // Usar endpoints novos do backend quando disponíveis
+      const proximos = await cobrancasService.listarProximosVencimentos();
+      const pagamentosAtrasados = await cobrancasService.listarPagamentosAtrasados();
 
-      // Usar endpoint específico para atrasadas (melhor performance)
-      const atrasadas = await cobrancasService.listarAtrasadas();
+      // Carregar lista de vencimentos próximos para exibir na tabela
+      setCobrancas(proximos);
+      setCobrancasAtrasadas(pagamentosAtrasados);
 
-      // Calcular estatísticas
-      const hoje = new Date();
-      hoje.setHours(0, 0, 0, 0);
-      const seteDias = new Date();
-      seteDias.setDate(hoje.getDate() + 7);
-      seteDias.setHours(23, 59, 59, 999);
-
-      const vencimentosProximos = todasCobrancas.filter(c => {
-        if (!c.data_vencimento || c.status_cobranca === 'PAGO' || c.status_cobranca === 'CANCELADO') return false;
-        const vencimento = new Date(c.data_vencimento);
-        vencimento.setHours(0, 0, 0, 0);
-        return vencimento >= hoje && vencimento <= seteDias;
-      });
-
-      const receitaPrevista = todasCobrancas
-        .filter(c => c.status_cobranca === 'PENDENTE' || c.status_cobranca === 'ATRASADO')
-        .reduce((sum, c) => {
-          const valor = typeof c.valor_total_devido === 'string' 
-            ? parseFloat(c.valor_total_devido) 
-            : (c.valor_total_devido || 0);
-          return sum + valor;
-        }, 0);
+      // Calcular receita prevista a partir dos próximos vencimentos
+      const receitaPrevista = (proximos || []).reduce((sum, c) => {
+        const valor = typeof c.valor_total_devido === 'string' ? parseFloat(c.valor_total_devido) : (c.valor_total_devido || 0);
+        return sum + valor;
+      }, 0);
 
       setStats({
-        vencimentosProximos: vencimentosProximos.length,
+        vencimentosProximos: (proximos || []).length,
         atrasados: {
-          count: atrasadas.length,
-          valor: atrasadas.reduce((sum, c) => {
-            const valor = typeof c.valor_total_devido === 'string' 
-              ? parseFloat(c.valor_total_devido) 
-              : (c.valor_total_devido || 0);
+          count: (pagamentosAtrasados || []).length,
+          valor: (pagamentosAtrasados || []).reduce((sum, c) => {
+            const valor = typeof c.valor_total_devido === 'string' ? parseFloat(c.valor_total_devido) : (c.valor_total_devido || 0);
             return sum + valor;
           }, 0),
         },
@@ -80,20 +64,16 @@ const Dashboard = () => {
   };
 
   const formatarData = (data) => {
-    if (!data) return '-';
-    return new Date(data).toLocaleDateString('pt-BR');
+    return formatDateBR(data);
   };
 
   // Top 5 vencimentos mais próximos
-  const vencimentosProximos = cobrancas
-    .filter(c => {
-      if (!c.data_vencimento || c.status_cobranca === 'PAGO' || c.status_cobranca === 'CANCELADO') return false;
-      const vencimento = new Date(c.data_vencimento);
-      const hoje = new Date();
-      hoje.setHours(0, 0, 0, 0);
-      return vencimento >= hoje;
+  const vencimentosProximos = (cobrancas || [])
+    .sort((a, b) => {
+      const da = toLocalDateFromApi(a.data_vencimento) || new Date(0);
+      const db = toLocalDateFromApi(b.data_vencimento) || new Date(0);
+      return da - db;
     })
-    .sort((a, b) => new Date(a.data_vencimento) - new Date(b.data_vencimento))
     .slice(0, 5);
 
   if (loading) {
@@ -182,6 +162,54 @@ const Dashboard = () => {
                     </td>
                   </tr>
                 ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+
+      {/* Espaçamento entre seções */}
+      <div style={{ marginTop: '30px' }}></div>
+
+      {/* Lista de Pagamentos Atrasados */}
+      <div className="dashboard-list">
+        <h2>Pagamentos Atrasados</h2>
+        {cobrancasAtrasadas.length === 0 ? (
+          <div className="empty-state">
+            <p>Nenhum pagamento atrasado</p>
+          </div>
+        ) : (
+          <div className="atrasados-table">
+            <table>
+              <thead>
+                <tr>
+                  <th>Cliente</th>
+                  <th>Valor</th>
+                  <th>Vencimento</th>
+                  <th>Dias em Atraso</th>
+                  <th>Status</th>
+                </tr>
+              </thead>
+              <tbody>
+                {cobrancasAtrasadas.map((cobranca) => {
+                  const vencimento = toLocalDateFromApi(cobranca.data_vencimento);
+                  const hoje = new Date();
+                  hoje.setHours(0, 0, 0, 0);
+                  const diasAtraso = vencimento ? Math.floor((hoje - vencimento) / (1000 * 60 * 60 * 24)) : 0;
+                  return (
+                    <tr key={cobranca.id} className="row-atrasado">
+                      <td>{cobranca.cliente_nome || '-'}</td>
+                      <td>{formatarMoeda(cobranca.valor_total_devido)}</td>
+                      <td>{formatarData(cobranca.data_vencimento)}</td>
+                      <td><strong>{diasAtraso} dias</strong></td>
+                      <td>
+                        <span className={`status-badge status-${cobranca.status_cobranca?.toLowerCase()}`}>
+                          {cobranca.status_cobranca}
+                        </span>
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>

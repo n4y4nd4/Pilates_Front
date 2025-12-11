@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { cobrancasService } from '../../services/cobrancasService';
+import { toLocalDateFromApi } from '../../utils/date';
 
 const CobrancasList = () => {
   const [cobrancas, setCobrancas] = useState([]);
@@ -120,8 +121,9 @@ const CobrancasList = () => {
   };
 
   const formatarData = (data) => {
-    if (!data) return '-';
-    return new Date(data).toLocaleDateString('pt-BR');
+    // usar parser seguro para evitar off-by-one
+    const d = toLocalDateFromApi(data);
+    return d ? d.toLocaleDateString('pt-BR') : '-';
   };
 
   const getStatusClass = (status) => {
